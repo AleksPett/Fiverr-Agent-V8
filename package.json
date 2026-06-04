@@ -1,0 +1,7 @@
+{
+  "name": "fiverr-agent",
+  "version": "1.0.0",
+  "dependencies": {
+    "docx": "^9.6.1"
+  }
+}
