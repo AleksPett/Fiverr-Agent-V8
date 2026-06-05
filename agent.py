@@ -447,13 +447,11 @@ def claude(messages, system, model="claude-sonnet-4-6", max_tokens=2000):
     return resp.content[0].text
 
 def check_fiverr_message(subject, body):
-    """Sjekker om e-posten er en kundemelding på Fiverr (ikke en ordre)."""
+    """Sjekker om e-posten er en kundemelding på Fiverr."""
     subject_lower = subject.lower()
-    message_keywords = ["sent you a message", "new message", "har sendt deg en melding", "buyer messaged"]
-    if any(kw in subject_lower for kw in message_keywords):
-        return True
-    return False
-    
+    keywords = ["sent you a message", "new message", "har sendt deg en melding", "buyer messaged"]
+    return any(kw in subject_lower for kw in keywords)
+
 def extract_task(subject, body):
     text = claude(
         model="claude-haiku-4-5-20251001", max_tokens=500,
@@ -705,19 +703,16 @@ def process(mail_data):
     global active_order
     log.info(f"Behandler: {mail_data['subject']}")
 
-    # Sjekk om det er en kundemelding og ikke en ordre
     if check_fiverr_message(mail_data["subject"], mail_data["body"]):
         send_with_buttons(
             f"💬 NY MELDING PÅ FIVERR!\n\n"
             f"Fra: {mail_data['subject']}\n\n"
             f"{mail_data['body'][:500]}\n\n"
             f"Gå inn på Fiverr og svar kunden.",
-            buttons=[[
-                {"text": "📱 Åpne Fiverr", "data": "open_fiverr"}
-            ]]
+            buttons=[[{"text": "📱 Åpne Fiverr", "data": "open_fiverr"}]]
         )
         return
-        
+
     details = extract_task(mail_data["subject"], mail_data["body"])
     if not details.get("is_order"):
         log.info("Ikke en ny ordre.")
@@ -790,6 +785,7 @@ def handle_telegram_updates():
             data = callback.get("data","")
             chat_id = str(callback.get("from",{}).get("id",""))
             if chat_id != str(TELEGRAM_CHAT_ID): continue
+
             if data.startswith("ok_"):
                 oid = data[3:]
                 handle_ok(oid)
@@ -807,8 +803,7 @@ def handle_telegram_updates():
                 oid = data[5:]
                 active_order = oid
                 send_telegram(f"Aktiv ordre: {oid}. Chat fritt – skriv /lever for ny versjon.")
-            elif data == "open_fiverr":
-                send_telegram("Gå til fiverr.com/inbox for å svare kunden 📱")
+
             tg_request("answerCallbackQuery", {"callback_query_id": callback["id"]})
             continue
 
@@ -951,15 +946,7 @@ def handle_ok(oid):
         del pending_orders[oid]
         if oid in chat_history: del chat_history[oid]
         save_state()
-        gig = GIGS.get(gig_id, GIGS["product_en"])
-package = pending_orders.get(oid, {}).get("package", "basic")
-auto_amount = gig["prices"].get(package, 0) * 0.80  # Fiverr tar 20%
-record_earning(auto_amount, gig_id)
-send_telegram(
-    f"✅ Ordre {oid} godkjent!\n\n"
-    f"💰 ${auto_amount:.2f} registrert automatisk (etter Fiverrs 20% kutt)\n"
-    f"📊 Total: ${stats['total_earned']:.2f}\n\n"
-    f"Husk å levere på Fiverr!"
+        send_telegram(f"✅ Ordre {oid} godkjent!\n\nHusk å levere på Fiverr.\n\n💡 Tips: Legg til inntekten med:\n/inntekt_add <beløp> {gig_id}")
     else:
         send_telegram(f"Fant ikke '{oid}'. Aktive: {', '.join(pending_orders.keys()) or 'ingen'}")
 
