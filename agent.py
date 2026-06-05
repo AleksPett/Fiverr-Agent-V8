@@ -790,14 +790,14 @@ def handle_telegram_updates():
             data = callback.get("data","")
             chat_id = str(callback.get("from",{}).get("id",""))
             if chat_id != str(TELEGRAM_CHAT_ID): continue
-
             if data.startswith("ok_"):
                 oid = data[3:]
                 handle_ok(oid)
             elif data.startswith("revider_"):
                 oid = data[8:]
                 active_order = oid
-                            elif data.startswith("qc_"):
+                send_telegram(f"Revisjonsmodus for {oid}. Skriv hva som skal endres:")
+            elif data.startswith("qc_"):
                 oid = data[3:]
                 order = pending_orders.get(oid)
                 if order:
