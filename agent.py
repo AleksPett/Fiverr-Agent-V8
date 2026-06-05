@@ -797,20 +797,18 @@ def handle_telegram_updates():
             elif data.startswith("revider_"):
                 oid = data[8:]
                 active_order = oid
-                send_telegram(f"Revisjonsmodus for {oid}. Skriv hva som skal endres:")
-            elif data.startswith("qc_"):
+                            elif data.startswith("qc_"):
                 oid = data[3:]
                 order = pending_orders.get(oid)
                 if order:
                     qc = quality_check(order["delivery"], order["task"], order["gig"], order["package"])
                     send_telegram(f"QC-RAPPORT: {oid}\nScore: {qc.get('score')}/10\nProblemer: {qc.get('issues')}\nForbedringer: {qc.get('improvements')}")
             elif data.startswith("chat_"):
-                elif data == "open_fiverr":
-                send_telegram("Gå til fiverr.com/inbox for å svare kunden 📱")
                 oid = data[5:]
                 active_order = oid
                 send_telegram(f"Aktiv ordre: {oid}. Chat fritt – skriv /lever for ny versjon.")
-
+            elif data == "open_fiverr":
+                send_telegram("Gå til fiverr.com/inbox for å svare kunden 📱")
             tg_request("answerCallbackQuery", {"callback_query_id": callback["id"]})
             continue
 
