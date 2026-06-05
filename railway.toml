@@ -1,0 +1,4 @@
+[deploy]
+startCommand = "python3.11 agent.py"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
