@@ -3,11 +3,13 @@ import email
 import json
 import logging
 import os
+import random
 import re
 import subprocess
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 import base64
 import anthropic
 from datetime import datetime, timedelta
@@ -62,10 +64,20 @@ GIGS = {
             "premium": "5 produktbeskrivelser (250 ord), SEO + nøkkelord + meta-beskrivelse"
         },
         "system": (
-            "Du er en norsk copywriter som skriver produktbeskrivelser. "
-            "Alltid på norsk. Struktur: fengende overskrift, 1-2 setninger intro, "
-            "3-5 fordelsbaserte bullet points, avsluttende CTA. "
-            "Unngå klisjeer. Menneskelig og konkret."
+            "Du er en erfaren norsk copywriter som skriver selgende produktbeskrivelser for nettbutikker. "
+            "Skriv alltid på naturlig, flytende norsk – aldri oversatt-engelsk eller stiv AI-stil.\n\n"
+            "STRUKTUR:\n"
+            "- Fengende overskrift som treffer kjøperens behov (ikke bare produktnavnet)\n"
+            "- 1-2 setningers intro som maler et konkret bilde av nytten\n"
+            "- 3-5 bullet points som oversetter egenskaper til fordeler (ikke bare lister specs)\n"
+            "- Kort, naturlig avslutning med en oppfordring – uten klisjeer\n\n"
+            "KRAV:\n"
+            "- Vær konkret: bruk tall, materialer og situasjoner kunden kjenner seg igjen i\n"
+            "- Varier setningslengde – bland korte, slagkraftige linjer med lengre\n"
+            "- Forbudte fraser: 'i en verden hvor', 'ta din X til neste nivå', 'sømløs', "
+            "'revolusjonerende', 'enten du er X eller Y', 'se ikke lenger', 'opplev forskjellen'\n"
+            "- Ikke overdriv. Skriv som en dyktig fagperson, ikke en reklameplakat\n"
+            "- Bruk nøkkelord naturlig der de hører hjemme, aldri proppet inn"
         ),
         "format": "text"
     },
@@ -78,9 +90,20 @@ GIGS = {
             "premium": "5 product descriptions (250 words), SEO + keywords + meta description"
         },
         "system": (
-            "You are an expert ecommerce copywriter. Write converting product descriptions. "
-            "Structure: compelling headline, hook sentence, 4-5 benefit-focused bullets, CTA. "
-            "Be specific, avoid clichés. Optimize for search and humans."
+            "You are an expert ecommerce copywriter who writes product descriptions that convert. "
+            "Write like a skilled human, never like AI.\n\n"
+            "STRUCTURE:\n"
+            "- A headline that hits the buyer's need (not just the product name)\n"
+            "- A hook sentence that paints a concrete picture of the benefit\n"
+            "- 4-5 bullets that translate features into benefits (don't just list specs)\n"
+            "- A short, natural closing nudge – no clichés\n\n"
+            "RULES:\n"
+            "- Be specific: use numbers, materials, real situations the buyer recognizes\n"
+            "- Vary sentence length – mix short punchy lines with longer ones\n"
+            "- Banned phrases: 'in today's fast-paced world', 'take your X to the next level', "
+            "'seamless', 'game-changer', 'look no further', 'whether you're X or Y', 'elevate', 'unleash'\n"
+            "- Don't overhype. Write like a knowledgeable expert, not a billboard\n"
+            "- Weave keywords in naturally where they belong, never stuffed"
         ),
         "format": "text"
     },
@@ -128,9 +151,15 @@ GIGS = {
             "premium": "5-email sequence + subject line A/B variants"
         },
         "system": (
-            "You are an expert email copywriter. For each email:\n"
-            "SUBJECT: [subject line]\nPREVIEW: [50-90 chars]\nBODY:\n[body]\nCTA: [button text]\n---\n"
-            "Conversational, builds trust, one clear action per email."
+            "You are an expert email copywriter. Write emails people actually read and act on – "
+            "like a sharp human marketer, never like AI. For each email use this format:\n"
+            "SUBJECT: [subject line]\nPREVIEW: [50-90 chars]\nBODY:\n[body]\nCTA: [button text]\n---\n\n"
+            "RULES:\n"
+            "- Conversational and specific. One clear action per email\n"
+            "- Subject lines spark curiosity without clickbait\n"
+            "- Vary sentence length. Short lines carry weight\n"
+            "- Banned: 'in today's fast-paced world', 'seamless', 'unlock', 'elevate', 'game-changer'\n"
+            "- Build trust, don't hype"
         ),
         "format": "text"
     },
@@ -143,9 +172,16 @@ GIGS = {
             "premium": "6 pages + meta descriptions + strategy notes"
         },
         "system": (
-            "You are an expert website copywriter. For each section:\n"
+            "You are an expert website copywriter. Write for conversion, like a skilled human, never like AI. "
+            "For each section use this format:\n"
             "[SECTION NAME]\nH1: [headline]\nSubheadline: [text]\nBody: [copy]\nCTA: [button]\n\n"
-            "Every word earns its place. Write for conversion."
+            "RULES:\n"
+            "- Every word earns its place. Cut filler\n"
+            "- Headlines speak to the visitor's goal, not the company's ego\n"
+            "- Vary sentence length for rhythm\n"
+            "- Banned: 'in today's fast-paced world', 'seamless', 'unlock', 'elevate', "
+            "'game-changer', 'look no further', 'more than just'\n"
+            "- Concrete and confident, never salesy filler"
         ),
         "format": "text"
     }
@@ -227,22 +263,27 @@ def get_earnings_last_24h():
     return stats["daily_earned"].get(today, 0.0) + stats["daily_earned"].get(yesterday, 0.0)
 
 def check_milestones():
-    milestones = [
+    order_milestones = [
         (1, "Første ordre levert! 🎉 Reisen har begynt."),
         (5, "5 ordrer levert! 🔥 Du er i gang!"),
         (10, "10 ordrer! 🏆 Nå begynner Fiverr å legge merke til deg."),
         (25, "25 ordrer! 🚀 Du er offisielt en Fiverr-selger!"),
+    ]
+    earning_milestones = [
         (10, "Du har tjent $10! 💰"),
         (50, "Du har tjent $50! 💸"),
         (100, "Du har tjent $100! 🤑 Første hundrelapp!"),
     ]
-    for value, msg in milestones:
-        key = f"milestone_{value}_{msg[:10]}"
-        if key not in stats["milestones_sent"]:
-            if (value <= 25 and stats["orders_completed"] >= value) or \
-               (value in [10, 50, 100] and stats["total_earned"] >= value):
-                send_telegram(f"🏅 MILEPÆL!\n\n{msg}")
-                stats["milestones_sent"].append(key)
+    for value, msg in order_milestones:
+        key = f"orders_{value}"
+        if key not in stats["milestones_sent"] and stats["orders_completed"] >= value:
+            send_telegram(f"🏅 MILEPÆL!\n\n{msg}")
+            stats["milestones_sent"].append(key)
+    for value, msg in earning_milestones:
+        key = f"earned_{value}"
+        if key not in stats["milestones_sent"] and stats["total_earned"] >= value:
+            send_telegram(f"🏅 MILEPÆL!\n\n{msg}")
+            stats["milestones_sent"].append(key)
 
 
 # ─── TELEGRAM ────────────────────────────────────────────────────────────────
@@ -656,7 +697,6 @@ def send_daily_report():
         "God morgen! 🌅 Klar for en ny dag:",
         "Morgen! ☕ Her er status:"
     ]
-    import random
     greeting = random.choice(greetings)
 
     report = (
@@ -730,7 +770,6 @@ def send_fun_message(event, data={}):
             "☕ Ingen ordrer i dag. Kanskje dele Fiverr-profilen på LinkedIn? 📱",
         ]
     }
-    import random
     options = messages.get(event, [])
     if options:
         send_telegram(random.choice(options))
@@ -1076,17 +1115,13 @@ def check_stille_dag():
         last_stille_check = today
 
 
-# ─── IMPORT urllib.parse ─────────────────────────────────────────────────────
-import urllib.parse
-
-
 # ─── HOVEDLØKKE ──────────────────────────────────────────────────────────────
 
 def main():
     load_state()
-    log.info("Fiverr Agent v8 starter. Sjekker hvert %s sek.", CHECK_INTERVAL)
+    log.info("Fiverr Agent v9 starter. Sjekker hvert %s sek.", CHECK_INTERVAL)
     send_telegram(
-        "🤖 Fiverr Agent v8 er online!\n\n"
+        "🤖 Fiverr Agent v9 er online!\n\n"
         "Hva er nytt:\n"
         "  📊 Daglig rapport kl 07:00\n"
         "  🔍 Automatisk konkurrentanalyse + SEO\n"
