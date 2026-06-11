@@ -1,11 +1,4 @@
-[phases.setup]
-nixPkgs = ["python311", "nodejs_20"]
-
-[phases.install]
-cmds = [
-  "python3.11 -m pip install -r requirements.txt",
-  "npm install"
-]
+providers = ["python", "node"]
 
 [start]
-cmd = "python3.11 agent.py"
+cmd = "python3 agent.py"

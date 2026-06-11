@@ -290,8 +290,8 @@ def check_milestones():
 
 def tg_request(method, payload=None):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{method}"
-    data = json.dumps(payload or {}).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    data = json.dumps(payload or {}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json; charset=utf-8"})
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             return json.loads(resp.read().decode())
